@@ -198,7 +198,7 @@ public interface MetaDataService {
      * @throws MetaDataAcquireFailedException
      * @throws IOException
      */
-    GeneralResponse<Map<String, Object>> getDataSourceInfoWithAdvance(QueryDataSourceRequest request) throws UnExpectedRequestException, MetaDataAcquireFailedException, IOException;
+    GeneralResponse<Map<String, Object>> getDataSourceInfoWithAdvance(QueryDataSourceRequest request) throws Exception;
 
     /**
      * Get data source versions.
@@ -245,7 +245,7 @@ public interface MetaDataService {
      * @throws JSONException
      */
     GeneralResponse<Map<String, Object>> connectDataSource(String clusterName, String proxyUser, DataSourceConnectRequest request)
-            throws UnExpectedRequestException, MetaDataAcquireFailedException, IOException, JSONException;
+            throws Exception;
 
     /**
      * Publish data source.
@@ -300,7 +300,7 @@ public interface MetaDataService {
      * @throws PermissionDeniedRequestException
      */
     GeneralResponse modifyDataSourceParam(String clusterName, Long dataSourceId, DataSourceParamModifyRequest request)
-            throws UnExpectedRequestException, MetaDataAcquireFailedException, IOException, JSONException, PermissionDeniedRequestException;
+            throws Exception;
 
     /**
      * Create data source param.

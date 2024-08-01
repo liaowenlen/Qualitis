@@ -1,7 +1,6 @@
 package com.webank.wedatasphere.qualitis.client.impl;
 
 import com.google.common.collect.Maps;
-import com.webank.wedatasphere.qualitis.constant.SpecCharEnum;
 import com.webank.wedatasphere.qualitis.constants.QualitisConstants;
 import com.webank.wedatasphere.qualitis.constants.ResponseStatusConstants;
 import com.webank.wedatasphere.qualitis.exception.UnExpectedRequestException;
@@ -227,13 +226,16 @@ public class LinkisMetaDataManagerImpl implements LinkisMetaDataManager {
                 connectParams.put("authType", authType);
                 if (QualitisConstants.AUTH_TYPE_ACCOUNT_PWD.equals(authType)) {
                     connectParams.put("username", connectParamsRequest.getUsername());
-                    connectParams.put("password", CryptoUtils.encode(connectParamsRequest.getPassword()));
+                    connectParams.put("password", connectParamsRequest.getPassword());
                 } else if (QualitisConstants.AUTH_TYPE_DPM.equals(authType)) {
                     connectParams.put("appid", connectParamsRequest.getAppId());
                     connectParams.put("objectid", connectParamsRequest.getObjectId());
                     connectParams.put("mkPrivate", connectParamsRequest.getMkPrivate());
                 }
             }
+            connectParams.put("address", linkisDataSourceRequest.getSharedConnectParams().getHost());
+            connectParams.put("host", linkisDataSourceRequest.getSharedConnectParams().getHost());
+            connectParams.put("port", linkisDataSourceRequest.getSharedConnectParams().getPort());
             connectParams.put("subSystem", linkisDataSourceRequest.getSubSystem());
             connectParams.put("share", isShared);
             connectParams.put("dcn", isAutoInput(linkisDataSourceRequest.getInputType()));
