@@ -29,7 +29,9 @@ public enum TemplateDataSourceTypeEnum {
     MYSQL(2, "mysql"),
     TDSQL(3, "tdsql"),
     KAFKA(4, "kafka"),
-    FPS(5, "fps");
+    FPS(5, "fps"),
+    KINGBASE(6, "kingbase"),
+    DORIS(7, "doris");
 
     private Integer code;
     private String message;

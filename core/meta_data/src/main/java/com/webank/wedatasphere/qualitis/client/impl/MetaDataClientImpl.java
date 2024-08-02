@@ -45,19 +45,6 @@ import com.webank.wedatasphere.qualitis.metadata.response.table.PartitionStatist
 import com.webank.wedatasphere.qualitis.metadata.response.table.TableInfoDetail;
 import com.webank.wedatasphere.qualitis.metadata.response.table.TableStatisticsInfo;
 import com.webank.wedatasphere.qualitis.response.GeneralResponse;
-import java.io.File;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import javax.ws.rs.core.UriBuilder;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
@@ -78,6 +65,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+
+import javax.ws.rs.core.UriBuilder;
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author howeye
@@ -853,10 +854,11 @@ public class MetaDataClientImpl implements MetaDataClient {
         // Check existence of cluster name
         ClusterInfo clusterInfo = checkClusterNameExists(clusterName);
         // send request to get dbs
+        String[] dbnameAndSchamename = dbName.split("\\.");
         UriBuilder url = getPath(clusterInfo.getLinkisAddress()).path(linkisConfig.getDatasourceQueryColumn())
                 .queryParam("system", "Qualitis")
                 .queryParam("dataSourceName", dataSourceName)
-                .queryParam("database", dbName)
+                .queryParam("database", dbnameAndSchamename.length == 2 ? dbnameAndSchamename[1] : dbnameAndSchamename[0])
                 .queryParam("table", tableName);
         if (Objects.nonNull(envId)) {
             url.queryParam("envId", envId);

@@ -16,10 +16,13 @@
 
 package com.webank.wedatasphere.qualitis.rule.service.impl;
 
+import com.webank.wedatasphere.qualitis.config.LinkisConfig;
 import com.webank.wedatasphere.qualitis.constants.QualitisConstants;
 import com.webank.wedatasphere.qualitis.dao.UserDao;
 import com.webank.wedatasphere.qualitis.exception.PermissionDeniedRequestException;
 import com.webank.wedatasphere.qualitis.exception.UnExpectedRequestException;
+import com.webank.wedatasphere.qualitis.metadata.client.MetaDataClient;
+import com.webank.wedatasphere.qualitis.metadata.response.datasource.LinkisDataSourceInfoDetail;
 import com.webank.wedatasphere.qualitis.project.constant.OperateTypeEnum;
 import com.webank.wedatasphere.qualitis.project.constant.ProjectTypeEnum;
 import com.webank.wedatasphere.qualitis.project.constant.ProjectUserPermissionEnum;
@@ -32,15 +35,48 @@ import com.webank.wedatasphere.qualitis.rule.adapter.AutoArgumentAdapter;
 import com.webank.wedatasphere.qualitis.rule.constant.InputActionStepEnum;
 import com.webank.wedatasphere.qualitis.rule.constant.RuleLockRangeEnum;
 import com.webank.wedatasphere.qualitis.rule.constant.StatisticsValueTypeEnum;
+import com.webank.wedatasphere.qualitis.rule.constant.TemplateDataSourceTypeEnum;
 import com.webank.wedatasphere.qualitis.rule.constant.TemplateInputTypeEnum;
-import com.webank.wedatasphere.qualitis.rule.dao.*;
-import com.webank.wedatasphere.qualitis.rule.entity.*;
+import com.webank.wedatasphere.qualitis.rule.dao.AlarmConfigDao;
+import com.webank.wedatasphere.qualitis.rule.dao.BdpClientHistoryDao;
+import com.webank.wedatasphere.qualitis.rule.dao.ExecutionParametersDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleDataSourceDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleDataSourceMappingDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleGroupDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleTemplateDao;
+import com.webank.wedatasphere.qualitis.rule.dao.RuleVariableDao;
+import com.webank.wedatasphere.qualitis.rule.entity.AlarmConfig;
+import com.webank.wedatasphere.qualitis.rule.entity.BdpClientHistory;
+import com.webank.wedatasphere.qualitis.rule.entity.ExecutionParameters;
+import com.webank.wedatasphere.qualitis.rule.entity.Rule;
+import com.webank.wedatasphere.qualitis.rule.entity.RuleDataSource;
+import com.webank.wedatasphere.qualitis.rule.entity.RuleGroup;
+import com.webank.wedatasphere.qualitis.rule.entity.RuleVariable;
+import com.webank.wedatasphere.qualitis.rule.entity.Template;
+import com.webank.wedatasphere.qualitis.rule.entity.TemplateMidTableInputMeta;
+import com.webank.wedatasphere.qualitis.rule.entity.TemplateStatisticsInputMeta;
 import com.webank.wedatasphere.qualitis.rule.exception.RuleLockException;
-import com.webank.wedatasphere.qualitis.rule.request.*;
+import com.webank.wedatasphere.qualitis.rule.request.AbstractCommonRequest;
+import com.webank.wedatasphere.qualitis.rule.request.AddRuleRequest;
+import com.webank.wedatasphere.qualitis.rule.request.DataSourceRequest;
+import com.webank.wedatasphere.qualitis.rule.request.DeleteRuleRequest;
+import com.webank.wedatasphere.qualitis.rule.request.EnableRequest;
+import com.webank.wedatasphere.qualitis.rule.request.EnableRuleRequest;
+import com.webank.wedatasphere.qualitis.rule.request.ModifyRuleRequest;
+import com.webank.wedatasphere.qualitis.rule.request.TemplateArgumentRequest;
 import com.webank.wedatasphere.qualitis.rule.response.RuleDetailResponse;
 import com.webank.wedatasphere.qualitis.rule.response.RuleEnableResponse;
 import com.webank.wedatasphere.qualitis.rule.response.RuleResponse;
-import com.webank.wedatasphere.qualitis.rule.service.*;
+import com.webank.wedatasphere.qualitis.rule.service.AlarmConfigService;
+import com.webank.wedatasphere.qualitis.rule.service.RuleDataSourceService;
+import com.webank.wedatasphere.qualitis.rule.service.RuleLockService;
+import com.webank.wedatasphere.qualitis.rule.service.RuleService;
+import com.webank.wedatasphere.qualitis.rule.service.RuleTemplateService;
+import com.webank.wedatasphere.qualitis.rule.service.RuleVariableService;
+import com.webank.wedatasphere.qualitis.rule.service.TemplateMidTableInputMetaService;
+import com.webank.wedatasphere.qualitis.rule.service.TemplateOutputMetaService;
+import com.webank.wedatasphere.qualitis.rule.service.TemplateStatisticsInputMetaService;
 import com.webank.wedatasphere.qualitis.rule.util.TemplateMidTableUtil;
 import com.webank.wedatasphere.qualitis.rule.util.TemplateStatisticsUtil;
 import com.webank.wedatasphere.qualitis.scheduled.constant.RuleTypeEnum;
@@ -48,6 +84,7 @@ import com.webank.wedatasphere.qualitis.service.UserService;
 import com.webank.wedatasphere.qualitis.util.HttpUtils;
 import com.webank.wedatasphere.qualitis.util.UuidGenerator;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +96,12 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Context;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -128,6 +170,10 @@ public class RuleServiceImpl extends AbstractRuleService implements RuleService 
     private ProjectService projectService;
     @Autowired
     private RuleLockService ruleLockService;
+    @Autowired
+    private LinkisConfig linkisConfig;
+    @Autowired
+    private MetaDataClient metaDataClient;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RuleServiceImpl.class);
 
@@ -152,6 +198,28 @@ public class RuleServiceImpl extends AbstractRuleService implements RuleService 
 
     private GeneralResponse<RuleResponse> addRuleReal(AddRuleRequest request, String loginUser, boolean groupRules)
             throws UnExpectedRequestException, PermissionDeniedRequestException, IOException {
+        // 修正kingbase数据源的数据库
+        List<DataSourceRequest> datasources = request.getDatasource();
+        DataSourceRequest dataSourceRequest = datasources.get(0);
+        if (dataSourceRequest.getType().equals(TemplateDataSourceTypeEnum.KINGBASE.getMessage())) {
+            if (!dataSourceRequest.getDbName().contains(".")) {
+                try {
+                    Long dataSourceId = dataSourceRequest.getLinkisDataSourceId();
+                    String clusterName = dataSourceRequest.getClusterName();
+                    LinkisDataSourceInfoDetail dataSourceInfoById = metaDataClient.getDataSourceInfoById(
+                            clusterName,
+                            linkisConfig.getDatasourceAdmin(),
+                            dataSourceId
+                    );
+                    Map<String, Object> connectParams = dataSourceInfoById.getConnectParams();
+                    String instance = MapUtils.getString(connectParams, "instance");
+                    dataSourceRequest.setDbName(instance + "." + dataSourceRequest.getDbName());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
         // Check Arguments
         AddRuleRequest.checkRequest(request, false);
         if (request.getRuleEnable() == null) {

@@ -106,7 +106,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
     private static final String DPM = "dpm";
 
     private static final String SPARK_SQL_TEMPLATE = "var " + VARIABLE_NAME_PLACEHOLDER + " = spark.sql(\"" + SPARK_SQL_TEMPLATE_PLACEHOLDER + "\")";
-    private static final String SPARK_MYSQL_TEMPLATE = "val " + VARIABLE_NAME_PLACEHOLDER + " = spark.read.format(\"jdbc\").option(\"driver\",\"${JDBC_DRIVER}\").option(\"url\",\"jdbc:mysql://${MYSQL_IP}:${MYSQL_PORT}/\").option(\"user\",\"${MYSQL_USER}\").option(\"password\",\"${MYSQL_PASSWORD}\").option(\"query\",\"${SQL}\").load()";
+    private static final String SPARK_MYSQL_TEMPLATE = "val " + VARIABLE_NAME_PLACEHOLDER + " = spark.read.format(\"jdbc\").option(\"driver\",\"${JDBC_DRIVER}\").option(\"url\",\"${URL}\").option(\"user\",\"${MYSQL_USER}\").option(\"password\",\"${MYSQL_PASSWORD}\").option(\"query\",\"${SQL}\").load()";
     private static final String IF_EXIST = "if (spark.catalog.tableExists(\"" + SAVE_MID_TABLE_NAME_PLACEHOLDER + "\")) {";
     private static final String ELSE_EXIST = "} else {";
     private static final String END_EXIST = "}";
@@ -154,6 +154,8 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
         JDBC_DRIVER.put("tdsql", "com.mysql.jdbc.Driver");
         JDBC_DRIVER.put("oracle", "oracle.jdbc.driver.OracleDriver");
         JDBC_DRIVER.put("sqlserver", "com.microsoft.jdbc.sqlserver.SQLServerDriver");
+        JDBC_DRIVER.put("kingbase", "com.kingbase8.Driver");
+        JDBC_DRIVER.put("doris", "com.mysql.jdbc.Driver");
 
         DATE_FORMAT.put("1", "yyyyMMdd");
         DATE_FORMAT.put("2", "yyyy-MM-dd");
@@ -391,8 +393,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
                 String sql = "select " + selectPart + " from " + fromPart + " where " + filterPart;
                 String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, sql)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, fromPart.split("\\.")[0]))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
                 sqlList.add(str.replace(VARIABLE_NAME_PLACEHOLDER, "communalDf_" + envName));
@@ -407,6 +408,21 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
             sqlList.add("spark.catalog.cacheTable(\"" + commonTableName + "\")");
         }
         return sqlList;
+    }
+
+    private String getUrl(String dataSourceType, String host, String port, String dbName) {
+        switch (dataSourceType) {
+            case "mysql":
+                return String.format("jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=utf-8&useSSL=false", host, port, dbName);
+            case "hive":
+                return String.format("jdbc:hive2://%s:%s/%s", host, port, dbName);
+            case "kingbase":
+                return String.format("jdbc:kingbase8://%s:%s/%s", host, port, dbName);
+            case "doris":
+                return String.format("jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true&useCompression=true&useServerPrepStmts=false", host, port, dbName);
+            default:
+                throw new RuntimeException("无效的数据源类型: " + dataSourceType);
+        }
     }
 
     private List<String> generateShellSqlByTask(Rule rule, Date date, String applicationId, String createTime, StringBuilder partition, int count
@@ -942,8 +958,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
                         String dataType = (String) connParams.get("dataType");
                         String selectStr = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, tmp)
                                 .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                                .replace("${MYSQL_IP}", host)
-                                .replace("${MYSQL_PORT}", port)
+                                .replace("${URL}", getUrl(dataType, host, port, ruleDataSourceEnv.getDbAndTable().split(SpecCharEnum.PERIOD.getValue())[0]))
                                 .replace("${MYSQL_USER}", user)
                                 .replace("${MYSQL_PASSWORD}", pwd)
                                 .replace(VARIABLE_NAME_PLACEHOLDER, tmpTableName);
@@ -1124,8 +1139,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
             String dataType = (String) sourceConnect.get("dataType");
             String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, sourceSql.toString()).replace(VARIABLE_NAME_PLACEHOLDER, "originalDFLeft_" + partOfVariableName)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, dbTableMap.get("left_database")))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
             transformSql.add(str);
@@ -1141,8 +1155,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
             String dataType = (String) targetConnect.get("dataType");
             String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, targetSql.toString()).replace(VARIABLE_NAME_PLACEHOLDER, "originalDFRight_" + partOfVariableName)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, dbTableMap.get("right_database")))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
             transformSql.add(str);
@@ -1254,8 +1267,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
             String dataType = (String) sourceConnect.get("dataType");
             String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, sourceSql.toString()).replace(VARIABLE_NAME_PLACEHOLDER, "originalDFLeft_" + partOfVariableName)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, dbTableMap.get("left_database")))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
             transformSql.add(str);
@@ -1272,8 +1284,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
             String dataType = (String) targetConnect.get("dataType");
             String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, targetSql.toString()).replace(VARIABLE_NAME_PLACEHOLDER, "originalDFRight_" + partOfVariableName)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, dbTableMap.get("right_database")))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
             transformSql.add(str);
@@ -1440,8 +1451,7 @@ public class SqlTemplateConverter extends AbstractTemplateConverter {
                 String dataType = (String) connParams.get("dataType");
                 String str = SPARK_MYSQL_TEMPLATE.replace(SPARK_SQL_TEMPLATE_PLACEHOLDER, tmp)
                     .replace("${JDBC_DRIVER}", JDBC_DRIVER.get(dataType))
-                    .replace("${MYSQL_IP}", host)
-                    .replace("${MYSQL_PORT}", port)
+                    .replace("${URL}", getUrl(dataType, host, port, ""))
                     .replace("${MYSQL_USER}", user)
                     .replace("${MYSQL_PASSWORD}", pwd);
                 sparkSqlList.add("// 生成规则 " + partOfVariableName.split(SpecCharEnum.EQUAL.getValue())[1] + " 的校验查询代码");
